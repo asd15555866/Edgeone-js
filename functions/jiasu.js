@@ -1,5 +1,5 @@
-// functions/jiasu.js
-import { connect } from 'cloudflare:sockets';
+// functions/[[path]].js
+import { createConnection } from 'node:net';
 
 let userID = 'f455bd7c-27ca-4195-a371-119e5ca4c94b';
 let proxyIP = 'cdn-all.xn--b6gac.eu.org';
@@ -76,7 +76,7 @@ async function vlessOverWSHandler(request) {
       if (hasError) throw new Error('invalid header');
       if (isUDP && portRemote !== 53) throw new Error('UDP only for DNS');
       const raw = chunk.slice(rawDataIndex);
-      remoteSocket = connect({ hostname: proxyIP || addressRemote, port: portRemote });
+      remoteSocket = createConnection({ host: proxyIP || addressRemote, port: portRemote });
       const writer = remoteSocket.writable.getWriter();
       await writer.write(raw);
       writer.releaseLock();
@@ -97,7 +97,7 @@ function getVLESSConfig(userID, hostName) {
 }
 
 export async function onRequest(context) {
-   const { request } = context;
+  const { request } = context;
   const env = context.env;
   userID = env.UUID || userID;
   proxyIP = env.PROXYIP || proxyIP;
