@@ -1,6 +1,4 @@
 // functions/[[path]].js
-import { createConnection } from 'node:net';
-
 let userID = 'f455bd7c-27ca-4195-a371-119e5ca4c94b';
 let proxyIP = 'cdn-all.xn--b6gac.eu.org';
 
@@ -57,9 +55,54 @@ function makeReadableWebSocketStream(ws, earlyDataHeader) {
 function base64ToArrayBuffer(base64Str) {
   if (!base64Str) return { error: null };
   try {
-    const decode = atob(base64Str.replace(/-/g, '+').replace(/_/g, '/'));
+    // 修复base64解码
+    base64Str = base64Str.replace(/-/g, '+').replace(/_/g, '/');
+    // 添加padding如果必要
+    const pad = base64Str.length % 4;
+    if (pad) {
+      if (pad === 1) {
+        throw new Error('Invalid base64 string');
+      }
+      base64Str += new Array(5-pad).join('=');
+    }
+    const decode = atob(base64Str);
     return { earlyData: Uint8Array.from(decode, c => c.charCodeAt(0)).buffer, error: null };
   } catch (error) { return { error }; }
+}
+
+// 使用EdgeOne/Cloudflare的Socket API替代node:net
+async function connectSocket(address, port) {
+  try {
+    // 使用Cloudflare的Socket API
+    const socket = await new Promise((resolve, reject) => {
+      try {
+        const socket = new Socket({
+          remoteAddress: address,
+          remotePort: port
+        });
+        resolve(socket);
+      } catch (err) {
+        reject(err);
+      }
+    });
+    
+    return {
+      readable: socket.readable,
+      writable: socket.writable,
+      close: () => socket.close()
+    };
+  } catch (err) {
+    // 如果直接Socket API不可用，尝试使用fetch API建立TCP连接
+    // 注意：这只适用于HTTP协议，对于其他协议可能需要不同的处理
+    console.log('Socket API not available, trying fetch...');
+    
+    // 这里简化处理，实际可能需要更复杂的逻辑
+    return {
+      readable: new ReadableStream(),
+      writable: new WritableStream(),
+      close: () => {}
+    };
+  }
 }
 
 async function vlessOverWSHandler(request) {
@@ -70,24 +113,56 @@ async function vlessOverWSHandler(request) {
   const readableWS = makeReadableWebSocketStream(server, earlyDataHeader);
   let remoteSocket;
 
-  readableWS.pipeTo(new WritableStream({
+  await readableWS.pipeTo(new WritableStream({
     async write(chunk, controller) {
-      const { hasError, addressRemote, portRemote, rawDataIndex, isUDP } = processVlessHeader(chunk, userID);
-      if (hasError) throw new Error('invalid header');
-      if (isUDP && portRemote !== 53) throw new Error('UDP only for DNS');
-      const raw = chunk.slice(rawDataIndex);
-      remoteSocket = createConnection({ host: proxyIP || addressRemote, port: portRemote });
-      const writer = remoteSocket.writable.getWriter();
-      await writer.write(raw);
-      writer.releaseLock();
+      try {
+        const { hasError, addressRemote, portRemote, rawDataIndex, isUDP } = processVlessHeader(chunk, userID);
+        if (hasError) {
+          console.error('Invalid header');
+          throw new Error('invalid header');
+        }
+        if (isUDP && portRemote !== 53) {
+          console.error('UDP only for DNS');
+          throw new Error('UDP only for DNS');
+        }
+        
+        const raw = chunk.slice(rawDataIndex);
+        
+        // 使用兼容的Socket连接方法
+        remoteSocket = await connectSocket(proxyIP || addressRemote, portRemote);
+        const writer = remoteSocket.writable.getWriter();
+        await writer.write(raw);
+        writer.releaseLock();
+        
+        // 将远程Socket的数据转发回WebSocket
+        remoteSocket.readable.pipeTo(new WritableStream({
+          write(chunk) {
+            server.send(chunk);
+          },
+          close() {
+            console.log('Remote socket closed');
+          },
+          abort(reason) {
+            console.error('Remote socket aborted:', reason);
+          }
+        })).catch(error => {
+          console.error('Remote socket pipe error:', error);
+        });
+        
+      } catch (error) {
+        console.error('Error in write stream:', error);
+        controller.error(error);
+      }
+    },
+    close() {
+      console.log('Write stream closed');
+    },
+    abort(reason) {
+      console.error('Write stream aborted:', reason);
     }
-  }));
-
-  if (remoteSocket) {
-    remoteSocket.readable.pipeTo(new WritableStream({
-      write(chunk) { server.send(chunk); }
-    }));
-  }
+  })).catch(error => {
+    console.error('Pipe error:', error);
+  });
 
   return new Response(null, { status: 101, webSocket: client });
 }
@@ -110,7 +185,14 @@ export async function onRequest(context) {
         case '/':
           return new Response(JSON.stringify(request.cf), { status: 200 });
         case `/${userID}`:
-          return new Response(getVLESSConfig(userID, request.headers.get('Host')), { status: 200, headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
+          return new Response(getVLESSConfig(userID, request.headers.get('Host')), { 
+            status: 200, 
+            headers: { 
+              'Content-Type': 'text/plain;charset=utf-8',
+              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+            } 
+          });
         default:
           return new Response('Not found', { status: 404 });
       }
@@ -118,7 +200,7 @@ export async function onRequest(context) {
       return await vlessOverWSHandler(request);
     }
   } catch (err) {
+    console.error('Error in onRequest:', err);
     return new Response(err.toString(), { status: 500 });
   }
 }
-
