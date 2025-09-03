@@ -1,0 +1,31 @@
+{
+  "version": "1.0",
+  "name": "edgeone-simple-proxy",
+  "description": "EdgeOne Pages单纯反向代理项目",
+  "build": {
+    "command": "echo 'No build needed'",
+    "outputDir": "."
+  },
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/reverse-proxy.js",
+      "type": "function",
+      "priority": 1
+    }
+  ],
+  "functions": {
+    "reverse-proxy.js": {
+      "runtime": "javascript",
+      "handler": "default.fetch",
+      "entryPoint": "reverse-proxy.js"
+    }
+  },
+  "settings": {
+    "allowOrigin": ["*"],
+    "cache": {
+      "enabled": true,
+      "ttl": 300
+    }
+  }
+}
