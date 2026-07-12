@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EdgeOne 代理</title>
+  <title>网站代理</title>
   <style>
     :root {
       color-scheme: light dark;
@@ -81,8 +81,8 @@
 </head>
 <body>
   <main>
-    <h1>EdgeOne 代理</h1>
-    <p>输入目标网址，通过 Edge Function 转发请求。</p>
+    <h1>网站代理</h1>
+    <p>输入目标网址，通过 EdgeOne Pages Function 转发请求。</p>
     <form id="proxy-form">
       <input id="target-url" type="url" placeholder="https://example.com" required>
       <button type="submit">打开</button>
@@ -94,7 +94,7 @@
       event.preventDefault();
       const targetUrl = document.getElementById('target-url').value.trim();
       if (targetUrl) {
-        const proxyUrl = '/proxy?url=' + encodeURIComponent(targetUrl);
+        const proxyUrl = '/api/proxy?url=' + encodeURIComponent(targetUrl);
         window.open(proxyUrl, '_blank');
       }
     }
