@@ -19,6 +19,7 @@ function responseWithCors(response, requestId) {
     headers.set(name, value);
   }
   headers.set('X-Request-Id', requestId);
+  headers.set('Cache-Control', 'no-store');
 
   return new Response(response.body, {
     status: response.status,
@@ -34,6 +35,7 @@ function errorResponse(message, status, requestId) {
       ...corsHeaders,
       'Content-Type': 'text/plain; charset=utf-8',
       'X-Request-Id': requestId,
+      'Cache-Control': 'no-store',
     },
   });
 }
@@ -62,6 +64,7 @@ export default async function onRequest(context) {
       headers: {
         ...corsHeaders,
         'X-Request-Id': requestId,
+        'Cache-Control': 'no-store',
       },
     });
   }
