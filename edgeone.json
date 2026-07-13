@@ -1,0 +1,7 @@
+{
+  "name": "edgeone-proxy",
+  "description": "EdgeOne Pages 万能代理 - 加速访问 GitHub 等站点",
+  "overseasRegions": ["ap-tokyo"],
+  "cloudFunctions": {
+  }
+}
