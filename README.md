@@ -1,4 +1,4 @@
-# Universal Proxy
+# Go Proxy
 
 基于 Tencent EdgeOne Makers Cloud Functions 构建的万能反向代理服务。通过边缘网络加速访问任意网站，支持请求头透传、Cookie 保持、HTML 链接重写等特性。
 
